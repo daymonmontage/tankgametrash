@@ -1,6 +1,6 @@
 --[[ 
-    TITANIUM UI LIBRARY v2 (Remastered)
-    Design: Modern Dark, Smooth Animations, Glow Effects
+    TITANIUM UI LIBRARY v3 (Window Controls Update)
+    Features: Resize, Minimize, Close, Modern Dark Theme
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -23,7 +23,8 @@ local Theme = {
     SubText = Color3.fromRGB(160, 160, 160),
     Accent = Color3.fromRGB(114, 137, 218), -- Discord/Modern Blue
     AccentHover = Color3.fromRGB(130, 150, 240),
-    Outline = Color3.fromRGB(45, 45, 55)
+    Outline = Color3.fromRGB(45, 45, 55),
+    Red = Color3.fromRGB(235, 60, 60)
 }
 
 -- // UTILITIES //
@@ -65,7 +66,6 @@ function Library:CreateWindow(config)
     local UI = {}
     local Title = config.Title or "Titanium UI"
     
-    -- Cleanup
     if CoreGui:FindFirstChild(config.Name) then CoreGui[config.Name]:Destroy() end
 
     -- GUI Setup
@@ -77,13 +77,14 @@ function Library:CreateWindow(config)
     -- Main Window
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = UDim2.new(0, 650, 0, 420)
+    Main.Size = UDim2.new(0, 650, 0, 420) -- Default Size
     Main.Position = UDim2.new(0.5, -325, 0.5, -210)
     Main.BackgroundColor3 = Theme.Background
     Main.ClipsDescendants = true
     Main.Parent = ScreenGui
     
-    -- Styling Main
+    local MinSize = Vector2.new(500, 300) -- Минимальный размер окна
+    
     local MainCorner = Instance.new("UICorner", Main); MainCorner.CornerRadius = UDim.new(0, 10)
     local MainStroke = Instance.new("UIStroke", Main); MainStroke.Color = Theme.Outline; MainStroke.Thickness = 1.5
     
@@ -107,12 +108,20 @@ function Library:CreateWindow(config)
     Main:GetPropertyChangedSignal("Size"):Connect(UpdateShadow)
     UpdateShadow()
 
+    -- Header (For dragging and controls)
+    local Header = Instance.new("Frame", Main)
+    Header.Name = "Header"
+    Header.BackgroundTransparency = 1
+    Header.Size = UDim2.new(1, 0, 0, 50)
+    Header.ZIndex = 2
+
     -- Sidebar
     local Sidebar = Instance.new("Frame", Main)
     Sidebar.BackgroundColor3 = Theme.Sidebar
     Sidebar.Size = UDim2.new(0, 160, 1, 0)
     Sidebar.BorderSizePixel = 0
     
+    -- Logo
     local Logo = Instance.new("TextLabel", Sidebar)
     Logo.Text = Title
     Logo.Font = Enum.Font.GothamBold
@@ -147,6 +156,106 @@ function Library:CreateWindow(config)
     Content.Position = UDim2.new(0, 170, 0, 10)
     Content.ClipsDescendants = true
 
+    -- == WINDOW CONTROLS (Close & Minimize) ==
+    local ControlsHolder = Instance.new("Frame", Main)
+    ControlsHolder.BackgroundTransparency = 1
+    ControlsHolder.Size = UDim2.new(0, 80, 0, 30)
+    ControlsHolder.Position = UDim2.new(1, -90, 0, 10)
+    ControlsHolder.ZIndex = 5
+
+    -- Close Button
+    local CloseBtn = Instance.new("TextButton", ControlsHolder)
+    CloseBtn.Text = "X"
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 16
+    CloseBtn.TextColor3 = Theme.SubText
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+    
+    CloseBtn.MouseEnter:Connect(function() Utility:Tween(CloseBtn, {TextColor3 = Theme.Red}, 0.2) end)
+    CloseBtn.MouseLeave:Connect(function() Utility:Tween(CloseBtn, {TextColor3 = Theme.SubText}, 0.2) end)
+    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+    -- Minimize Button
+    local MinBtn = Instance.new("TextButton", ControlsHolder)
+    MinBtn.Text = "_"
+    MinBtn.Font = Enum.Font.GothamBold
+    MinBtn.TextSize = 16
+    MinBtn.TextColor3 = Theme.SubText
+    MinBtn.BackgroundTransparency = 1
+    MinBtn.Size = UDim2.new(0, 30, 0, 30)
+    MinBtn.Position = UDim2.new(1, -65, 0, -4) -- Slightly higher to align text
+    
+    local isMinimized = false
+    local savedSize = Main.Size
+    
+    MinBtn.MouseEnter:Connect(function() Utility:Tween(MinBtn, {TextColor3 = Theme.Accent}, 0.2) end)
+    MinBtn.MouseLeave:Connect(function() Utility:Tween(MinBtn, {TextColor3 = Theme.SubText}, 0.2) end)
+    
+    MinBtn.MouseButton1Click:Connect(function()
+        if isMinimized then
+            -- Restore
+            Utility:Tween(Main, {Size = savedSize}, 0.4, Enum.EasingStyle.Quart)
+            wait(0.1)
+            Sidebar.Visible = true
+            Content.Visible = true
+            isMinimized = false
+        else
+            -- Minimize
+            savedSize = Main.Size
+            Sidebar.Visible = false
+            Content.Visible = false
+            isMinimized = true
+            Utility:Tween(Main, {Size = UDim2.new(0, savedSize.X.Offset, 0, 50)}, 0.4, Enum.EasingStyle.Quart)
+        end
+    end)
+
+    -- == RESIZE HANDLE (Right Bottom) ==
+    local ResizeHandle = Instance.new("ImageButton", Main)
+    ResizeHandle.Name = "Resize"
+    ResizeHandle.BackgroundTransparency = 1
+    ResizeHandle.Size = UDim2.new(0, 20, 0, 20)
+    ResizeHandle.Position = UDim2.new(1, -20, 1, -20)
+    ResizeHandle.Image = "rbxassetid://6035284528" -- Diagonal Lines
+    ResizeHandle.ImageColor3 = Theme.SubText
+    ResizeHandle.ZIndex = 10
+    
+    local isResizing = false
+    
+    ResizeHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isResizing = true
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isResizing = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if isResizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local newX = input.Position.X - Main.AbsolutePosition.X
+            local newY = input.Position.Y - Main.AbsolutePosition.Y
+            
+            -- Apply Min Size
+            newX = math.max(newX, MinSize.X)
+            newY = math.max(newY, MinSize.Y)
+            
+            if not isMinimized then
+                Main.Size = UDim2.new(0, newX, 0, newY)
+            end
+        end
+    end)
+    
+    -- Hide Handle when minimized
+    Main:GetPropertyChangedSignal("Size"):Connect(function()
+        ResizeHandle.Visible = not isMinimized
+    end)
+
+
     -- Notifications System
     local NotifContainer = Instance.new("Frame", ScreenGui)
     NotifContainer.Size = UDim2.new(0, 300, 1, 0)
@@ -163,7 +272,7 @@ function Library:CreateWindow(config)
         frame.Size = UDim2.new(1, 0, 0, 70)
         frame.BackgroundColor3 = Theme.Sidebar
         frame.BorderSizePixel = 0
-        frame.BackgroundTransparency = 1 -- Animate in
+        frame.BackgroundTransparency = 1
         
         local corner = Instance.new("UICorner", frame); corner.CornerRadius = UDim.new(0, 8)
         local stroke = Instance.new("UIStroke", frame); stroke.Color = Theme.Accent; stroke.Thickness = 1
@@ -199,14 +308,14 @@ function Library:CreateWindow(config)
         end)
     end
 
-    -- Dragging Logic
+    -- Dragging Logic (Moved to Header)
     local dragging, dragInput, dragStart, startPos
-    Main.InputBegan:Connect(function(input)
+    Header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true; dragStart = input.Position; startPos = Main.Position
         end
     end)
-    Main.InputChanged:Connect(function(input)
+    Header.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -219,16 +328,16 @@ function Library:CreateWindow(config)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
     end)
 
-    -- Toggle Menu Key
+    -- Toggle Key
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.RightControl then -- Standard Bind
+        if input.KeyCode == Enum.KeyCode.RightControl then
             Main.Visible = not Main.Visible
             Shadow.Visible = Main.Visible
         end
     end)
 
-    -- TABS
+    -- TABS SYSTEM
     local Tabs = {}
     local FirstTab = true
 
@@ -271,7 +380,6 @@ function Library:CreateWindow(config)
         PageList.Padding = UDim.new(0, 8)
         PageList.SortOrder = Enum.SortOrder.LayoutOrder
 
-        -- Activate Function
         local function Activate()
             for _, t in pairs(Tabs) do
                 Utility:Tween(t.Btn, {BackgroundTransparency = 1}, 0.2)
@@ -286,13 +394,11 @@ function Library:CreateWindow(config)
         end
 
         TabBtn.MouseButton1Click:Connect(Activate)
-        
         table.insert(Tabs, {Btn = TabBtn, Title = TabTitle, Icon = TabIcon, Page = Page})
 
         if FirstTab then Activate(); FirstTab = false end
 
-        -- Elements
-        
+        -- ELEMENTS
         function Tab:Label(text)
             local Lab = Instance.new("TextLabel", Page)
             Lab.Text = text
@@ -384,14 +490,8 @@ function Library:CreateWindow(config)
                 end
                 pcall(callback, toggled)
             end
-            
             if toggled then Update() end
-            
-            Tgl.MouseButton1Click:Connect(function()
-                toggled = not toggled
-                Update()
-                Utility:Ripple(Tgl)
-            end)
+            Tgl.MouseButton1Click:Connect(function() toggled = not toggled; Update(); Utility:Ripple(Tgl) end)
         end
 
         function Tab:Slider(text, min, max, default, callback)
@@ -439,29 +539,13 @@ function Library:CreateWindow(config)
             local function Update(input)
                 local percent = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
                 local newVal = math.floor(min + (max - min) * percent)
-                
                 Utility:Tween(Fill, {Size = UDim2.new(percent, 0, 1, 0)}, 0.1)
                 ValLabel.Text = tostring(newVal)
                 pcall(callback, newVal)
             end
-            
-            Bar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = true
-                    Update(input)
-                end
-            end)
-            
-            UserInputService.InputChanged:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                    Update(input)
-                end
-            end)
-            
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-            end)
-            
+            Bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; Update(input) end end)
+            UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then Update(input) end end)
+            UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
             SliderFrame.MouseEnter:Connect(function() Utility:Tween(Stroke, {Color = Theme.Accent}, 0.2) end)
             SliderFrame.MouseLeave:Connect(function() Utility:Tween(Stroke, {Color = Theme.Outline}, 0.2) end)
         end
@@ -472,14 +556,12 @@ function Library:CreateWindow(config)
             DropFrame.Size = UDim2.new(1, -10, 0, 40)
             DropFrame.BackgroundColor3 = Theme.Element
             DropFrame.ClipsDescendants = true
-            
             local Corner = Instance.new("UICorner", DropFrame); Corner.CornerRadius = UDim.new(0, 6)
             local Stroke = Instance.new("UIStroke", DropFrame); Stroke.Color = Theme.Outline; Stroke.Thickness = 1
             
             local DropBtn = Instance.new("TextButton", DropFrame)
             DropBtn.Size = UDim2.new(1, 0, 0, 40)
-            DropBtn.BackgroundTransparency = 1
-            DropBtn.Text = ""
+            DropBtn.BackgroundTransparency = 1; DropBtn.Text = ""
             
             local Label = Instance.new("TextLabel", DropBtn)
             Label.Text = text .. "..."
@@ -492,21 +574,16 @@ function Library:CreateWindow(config)
             Label.TextXAlignment = Enum.TextXAlignment.Left
             
             local Icon = Instance.new("ImageLabel", DropBtn)
-            Icon.Image = "rbxassetid://6031091004" -- Arrow Down
+            Icon.Image = "rbxassetid://6031091004"
             Icon.Size = UDim2.new(0, 20, 0, 20)
             Icon.Position = UDim2.new(1, -30, 0.5, -10)
             Icon.BackgroundTransparency = 1
             Icon.ImageColor3 = Theme.SubText
             
-            local List = Instance.new("UIListLayout", DropFrame)
-            List.SortOrder = Enum.SortOrder.LayoutOrder
-            List.Padding = UDim.new(0, 2)
-            
             local Container = Instance.new("Frame", DropFrame)
             Container.Size = UDim2.new(1, 0, 0, 0)
             Container.BackgroundTransparency = 1
-            Container.LayoutOrder = 2
-            
+            Container.Position = UDim2.new(0, 0, 0, 40)
             local ContainerList = Instance.new("UIListLayout", Container)
             
             for _, opt in pairs(options) do
@@ -518,7 +595,6 @@ function Library:CreateWindow(config)
                 OptBtn.TextColor3 = Theme.SubText
                 OptBtn.Font = Enum.Font.Gotham
                 OptBtn.TextSize = 12
-                
                 OptBtn.MouseButton1Click:Connect(function()
                     Label.Text = text .. ": " .. opt
                     dropped = false
@@ -527,13 +603,11 @@ function Library:CreateWindow(config)
                     pcall(callback, opt)
                 end)
             end
-            
             DropBtn.MouseButton1Click:Connect(function()
                 dropped = not dropped
                 local h = dropped and (40 + (#options * 30)) or 40
                 Utility:Tween(DropFrame, {Size = UDim2.new(1, -10, 0, h)}, 0.2)
                 Utility:Tween(Icon, {Rotation = dropped and 180 or 0}, 0.2)
-                Container.Size = UDim2.new(1, 0, 0, #options * 30)
             end)
         end
 
